@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>FlipMove Minimal Demo</title>
+    <style>
+      /* Purple background so it’s obvious when loaded */
+      body {
+        margin: 0;
+        padding: 0;
+        background: #20004c;
+        color: #fff;
+        font-family: sans-serif;
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+      }
+
+      /* Simple focus box for the tile in focus */
+      .focusBox {
+        position: absolute;
+        width: 220px;
+        height: 300px;
+        top: 300px;
+        left: 75px;
+        border: 4px solid #f00;
+        pointer-events: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+
+    <!-- React, ReactDOM, Babel -->
+    <script src="https://unpkg.com/react@17/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@17/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone@7/babel.min.js"></script>
+
+    <!-- React Flip Move -->
+    <script src="https://unpkg.com/react-flip-move@3.0.4/dist/react-flip-move.js"></script>
+
+    <script type="text/babel">
+      // We'll grab the default FlipMove export:
+      const FlipMove = window.ReactFlipMove.default;
+
+      /*********************************************************
+       * Minimal Page1
+       *  - 3 base tiles + "Back tile"
+       *  - Insert expansions 6 away
+       *  - FlipMove so existing tiles slide right
+       *********************************************************/
+      function Page1() {
+        const [tiles, setTiles] = React.useState(baseTiles);
+        const [selectedIds, setSelectedIds] = React.useState([]);
+        const [focusIndex, setFocusIndex] = React.useState(0);
+
+        // "Back to Beginning" tile
+        const backTile = {
+          id: "back_tile",
+          title: "Back to Beginning",
+          image: "https://raw.githubusercontent.com/nuzzlecut/assets/main/back_to_beginning.png",
+          isBackTile: true,
+        };
+        const renderedTiles = [...tiles, backTile];
+
+        // Keydown for left/right + Enter
+        React.useEffect(() => {
+          function handleKey(e) {
+            if (e.key === "ArrowRight") {
+              setFocusIndex((prev) => Math.min(prev + 1, renderedTiles.length - 1));
+            } else if (e.key === "ArrowLeft") {
+              setFocusIndex((prev) => Math.max(prev - 1, 0));
+            } else if (e.key === "Enter") {
+              handleSelectTile(focusIndex);
+            }
+          }
+          window.addEventListener("keydown", handleKey);
+          return () => window.removeEventListener("keydown", handleKey);
+        }, [focusIndex, renderedTiles]);
+
+        function handleSelectTile(idx) {
+          // If it's the "Back" tile => jump to 0
+          if (idx === renderedTiles.length - 1) {
+            setFocusIndex(0);
+            return;
+          }
+          const t = renderedTiles[idx];
+          if (!t) return;
+
+          const isSelected = selectedIds.includes(t.title);
+          if (!isSelected) {
+            // Select
+            setSelectedIds((prev) => [...prev, t.title]);
+
+            // Insert expansions 6 away
+            if (t.expansionTiles) {
+              const expansionsToAdd = t.expansionTiles
+                .map((eid) => expansionData[eid])
+                .filter(Boolean)
+                .filter((exp) => !tiles.some((x) => x.title === exp.title));
+              if (expansionsToAdd.length > 0) {
+                const insertIndex = Math.min(idx + 6, tiles.length);
+                const newArr = [...tiles];
+                newArr.splice(insertIndex, 0, ...expansionsToAdd);
+                setTiles(newArr);
+              }
+            }
+          } else {
+            // Unselect
+            setSelectedIds((prev) => prev.filter((x) => x !== t.title));
+          }
+        }
+
+        // Layout
+        const TILE_W = 205;
+        const TILE_H = 285;
+        const TILE_SPACING = 15;
+        // We'll pin the focus tile at x=0 => offsetX = -focusIndex*(TILE_W+TILE_SPACING)
+        const offsetX = -(focusIndex * (TILE_W + TILE_SPACING));
+
+        let metaTitle = "";
+        if (renderedTiles[focusIndex]) {
+          if (renderedTiles[focusIndex].isBackTile) {
+            metaTitle = "Back to Beginning";
+          } else {
+            metaTitle = renderedTiles[focusIndex].title;
+          }
+        }
+
+        return (
+          <div style={{ width: "1920px", height: "1080px", position: "relative" }}>
+            {/* FOCUS BOX just to see which tile is in focus */}
+            <div className="focusBox" />
+
+            {/* Title text */}
+            <div style={{ position: "absolute", top: 50, left: 50, fontSize: 36 }}>
+              Minimal Flip Move Demo<br />
+              Press Left/Right arrow to navigate, Enter to select<br />
+              Focus Index: {focusIndex} – {metaTitle}
+            </div>
+
+            {/* CAROUSEL WRAPPER */}
+            <div
+              style={{
+                position: "absolute",
+                top: 300,
+                left: 300,
+                width: 1600,
+                height: TILE_H,
+                overflow: "hidden",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "row",
+                  transform: `translateX(${offsetX}px)`,
+                  transition: "transform 150ms ease-out",
+                }}
+              >
+                <FlipMove typeName={null} duration={400} easing="ease-out">
+                  {renderedTiles.map((tileObj) => {
+                    const isSelected = !tileObj.isBackTile && selectedIds.includes(tileObj.title);
+                    return (
+                      <div
+                        key={tileObj.id}
+                        style={{
+                          flex: "0 0 auto",
+                          width: TILE_W,
+                          height: TILE_H,
+                          marginRight: TILE_SPACING,
+                          position: "relative",
+                          border: "1px solid #999",
+                        }}
+                      >
+                        <img
+                          src={tileObj.image}
+                          alt={tileObj.title}
+                          style={{ width: "100%", height: "100%" }}
+                        />
+                        {isSelected && (
+                          <div
+                            style={{
+                              position: "absolute",
+                              top: 0,
+                              left: 0,
+                              width: "100%",
+                              height: "100%",
+                              backgroundColor: "rgba(0,255,0,0.4)",
+                            }}
+                          />
+                        )}
+                      </div>
+                    );
+                  })}
+                </FlipMove>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      /*********************************************************
+       * Master: Just show Page1
+       *********************************************************/
+      function App() {
+        return <Page1 />;
+      }
+
+      /*********************************************************
+       * Minimal base tiles
+       *********************************************************/
+      const baseTiles = [
+        {
+          id: "1a",
+          title: "Wicked",
+          image: "https://raw.githubusercontent.com/nuzzlecut/assets/main/1a.png",
+          expansionTiles: ["1b","1c"],
+        },
+        {
+          id: "2a",
+          title: "Deadpool & Wolverine",
+          image: "https://raw.githubusercontent.com/nuzzlecut/assets/main/2a.png",
+          expansionTiles: ["2b"],
+        },
+        {
+          id: "3a",
+          title: "The Kardashians",
+          image: "https://raw.githubusercontent.com/nuzzlecut/assets/main/3a.png",
+          expansionTiles: [],
+        }
+      ];
+
+      const expansionData = {
+        "1b": {
+          id: "1b",
+          title: "Harry Potter",
+          image: "https://raw.githubusercontent.com/nuzzlecut/assets/main/1b.png",
+        },
+        "1c": {
+          id: "1c",
+          title: "Lord of the Rings",
+          image: "https://raw.githubusercontent.com/nuzzlecut/assets/main/1c.png",
+        },
+        "2b": {
+          id: "2b",
+          title: "John Wick",
+          image: "https://raw.githubusercontent.com/nuzzlecut/assets/main/2b.png",
+        },
+      };
+
+      /*********************************************************
+       * Render
+       *********************************************************/
+      ReactDOM.render(<App />, document.getElementById("root"));
+    </script>
+  </body>
+</html>
